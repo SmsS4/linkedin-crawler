@@ -1,8 +1,10 @@
 import argparse
 from logging import DEBUG
 
-from dynaconf import Dynaconf, Validator
+from dynaconf import Dynaconf
+from dynaconf import Validator
 from linkedin_api import Linkedin
+from requests.cookies import cookiejar_from_dict
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import sessionmaker
@@ -50,6 +52,9 @@ def main():
     parser.add_argument(
         "--config", "-c", type=str, help="Path to config file", default="settings.toml"
     )
+    parser.add_argument(
+        "--cookie", action="store_true", help="Just show cookie and exit", default=False
+    )
     args = parser.parse_args()
     config_path = args.config
     logger.info("config path: %s", config_path)
@@ -64,10 +69,38 @@ def main():
             Validator("db_password", is_type_of=str),
             Validator("linkedin_username", is_type_of=str),
             Validator("linkedin_password", is_type_of=str),
+            Validator("linkedin_jsessionip", is_type_of=str),
+            Validator("linkedin_li_at", is_type_of=str),
         ],
     )
-    db = get_db(settings.db_user, settings.db_password, settings.db_name, settings.db_host, settings.db_port)
-    api = Linkedin(settings.linkedin_username, settings.linkedin_password)
+    settings.validators.validate()
+    db = get_db(
+        settings.db_user,
+        settings.db_password,
+        settings.db_name,
+        settings.db_host,
+        settings.db_port,
+    )
+    if settings.get("linkedin_jsessionip", False):
+        logger.info("Using cookies")
+        cookies = cookiejar_from_dict(
+            {
+                "liap": "true",
+                "li_at": settings.linkedin_li_at,
+                "JSESSIONID": settings.linkedin_jsessionip,
+            }
+        )
+        api = Linkedin("", "", cookies=cookies)
+    else:
+        logger.warning("Using username and pass")
+        api = Linkedin(settings.linkedin_username, settings.linkedin_password)
+    if args.cookie:
+        print("-----------------------")
+        print(
+            f"li_at: {api.client.session.cookies.get('li_at')}\njsessionip: {api.client.session.cookies.get('JSESSIONID')}"
+        )
+        print("-----------------------")
+        exit(0)
     stocks = raw_stocks.get_raw_stocks()
     for symbol, name in stocks[3:20]:
         name = clean_name(name)
