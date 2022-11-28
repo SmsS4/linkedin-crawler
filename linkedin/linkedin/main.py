@@ -32,18 +32,67 @@ def get_db(settings: Dynaconf) -> Session:
 
 logger = get_logger("main", level=DEBUG)
 
-to_del = [
+suffix = [
+    "Common Stock,",
+    "Class A Common Stock,",
+    "Agile Growth Corp. Warrant.",
+    "SAIL Warrant.",
+    "(Canada)",
+    "(Bermuda)",
+    "S.A.",
+    "N.V. Common Stock",
+    "(Holding Company) Common Stock",
+    "Class A Common Stock New",
+    "Class A Ordinary Shares",
+    "PLC Ordinary Shares",
     "Ordinary Share",
-    "Inc. Common Stock",
+    "Class A Common Stock",
+    "(The) Common Stock",
     "Common Stock",
+    "ADS",
+    "ASA",
+    "SE",
+    "SA American Depositary Shares",
+    "SA",
+    "AG",
+    "S.A. Sponsored ADR (Spain)",
+    "Limited American Depositary Shares",
+    "Class A Subordinate Voting Shares",
+    "Depositary Shares",
+    "PLC Common Stock",
+    "(REIT)",
+    "REIT",
+    "American Depositary Shares",
+    "(",
+    "Corporation Class A Common Stock",
+]
+suffix = list(sorted(suffix, key=lambda x: len(x), reverse=True))
+# to_del = list(map(str.lower, to_del))
+# suffix = list(map(str.lower, suffix))
+
+puncs = [
+    ",",
+    ".",
+    "(",
+    ")",
 ]
 
 
+def clean(name: str) -> str:
+    name = name.strip()
+    for p in puncs:
+        if name.endswith(p):
+            name = name[: -len(p)].strip()
+    return name
+
+
 def clean_name(name: str) -> str:
-    for td in to_del:
-        name = name.replace(td, "").strip()
-    if name[-1] == ",":
-        name = name[:-1].strip()
+    name = clean(name)
+    for s in suffix:
+        idx = name.find(s)
+        if idx != -1:
+            name = clean(name[:idx])
+    name = clean(name)
     return name
 
 
@@ -97,8 +146,7 @@ def get_api(settings: Dynaconf) -> Linkedin:
 
 def find_company(api: Linkedin, name: str) -> dict | None:
     name = clean_name(name)
-
-    companies = api.search_companies(name, limit=1)
+    companies = api.search_companies(name, limit=10)
     if not len(companies):
         logger.error("Could not find company %s", name)
         return None
@@ -133,24 +181,26 @@ def find_people(api: Linkedin, urn_id: str, data: dict) -> list:
 def add_locations(db: Session, urn_id: str, locations: list) -> None:
     logger.debug("Adding locations")
     for loc in locations:
+        logger.debug("Loc:\n%s", loc)
         db.add(
             models.Locations(
                 company_urn_id=urn_id,
                 country=loc["country"],
-                geographic_area=loc["geographicArea"],
+                geographic_area=loc.get("geographicArea", None),
                 city=loc["city"],
-                postal_code=loc["postalCode"],
-                line=loc["line1"],
+                postal_code=loc.get("postalCode", None),
+                line=loc.get("line1", None),
                 headquarter=loc["headquarter"],
             )
         )
-    db.commit()
+    # db.commit()
 
 
 def handle_experience(db: Session, exp: dict):
     tp = exp.get("timePeriod", None)
     start = tp.get("startDate", None) if tp else None
     end = tp.get("endDate", None) if tp else None
+    logger.debug("Exp:\n%s", exp)
     db.add(
         models.Experience(
             location=exp.get("geoLocationName", None),
@@ -169,6 +219,7 @@ def handle_education(db: Session, edu: dict):
     tp = edu.get("timePeriod", None)
     start = tp.get("startDate", None) if tp else None
     end = tp.get("endDate", None) if tp else None
+    logger.debug("Edu:\n%s", edu)
     db.add(
         models.Education(
             degree=edu.get("degree", None),
@@ -184,10 +235,10 @@ def handle_education(db: Session, edu: dict):
 def handle_person(person: dict, api: Linkedin, db: Session) -> None:
     logger.debug("Getting info of %s", person)
     profile = api.get_profile(urn_id=person["urn_id"])
-    logger.debug("data: %s", profile)
+    logger.debug("data:\n%s", profile)
     db.add(
         models.People(
-            industry_name=profile["industryName"],
+            industry_name=profile.get("industryName", None),
             first_name=profile["firstName"],
             last_name=profile["lastName"],
             student=profile["student"],
@@ -221,12 +272,12 @@ def handle_stock(db: Session, api: Linkedin, symbol: str, name: str) -> None:
             symbol=symbol,
         )
     )
-    db.commit()
+    # db.commit()
     add_locations(db, urn_id, data["confirmedLocations"])
     people = find_people(api, company["urn_id"], data)
     for person in people:
         handle_person(person, api, db)
-    db.commit()
+    # db.commit()
 
 
 def main():
@@ -242,7 +293,7 @@ def main():
         print("-----------------------")
         exit(0)
     stocks = raw_stocks.get_raw_stocks()
-    for symbol, name in stocks[3:20]:
+    for symbol, name in stocks[30:40]:
         handle_stock(db, api, symbol, name)
 
 

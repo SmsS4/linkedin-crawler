@@ -30,7 +30,7 @@ class People(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now())
 
-    industry_name = Column(VARCHAR(), nullable=False)
+    industry_name = Column(VARCHAR(), nullable=True)  # TODO
     first_name = Column(VARCHAR(), nullable=False)
     last_name = Column(VARCHAR(), nullable=False)
     student = Column(Boolean(), nullable=False)
@@ -74,8 +74,8 @@ class Locations(Base):
 
     company_urn_id = Column(Integer, ForeignKey(Company.urn_id), nullable=False)
     country = Column(VARCHAR(), nullable=False)
-    geographic_area = Column(VARCHAR(), nullable=False)
+    geographic_area = Column(VARCHAR(), nullable=True)  # TODO
     city = Column(VARCHAR(), nullable=False)
-    postal_code = Column(VARCHAR(), nullable=False)
-    line = Column(VARCHAR(), nullable=False)
+    postal_code = Column(VARCHAR(), nullable=False)  # TODO
+    line = Column(VARCHAR(), nullable=True)  # TODO
     headquarter = Column(Boolean(), nullable=False)
