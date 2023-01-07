@@ -33,9 +33,14 @@ def get_db(settings: Dynaconf) -> Session:
 logger = get_logger("main", level=DEBUG)
 
 suffix = [
+    "Class A",
+    "Global Limited",
     "Common Stock,",
     "Class A Common Stock,",
     "Agile Growth Corp. Warrant.",
+    "Warrant",
+    "Common Shares",
+    "Acquisition",
     "SAIL Warrant.",
     "(Canada)",
     "(Bermuda)",
@@ -81,8 +86,7 @@ puncs = [
 def clean(name: str) -> str:
     name = name.strip()
     for p in puncs:
-        if name.endswith(p):
-            name = name[: -len(p)].strip()
+        name = name.replace(p, "").strip()
     return name
 
 
@@ -92,6 +96,13 @@ def clean_name(name: str) -> str:
         idx = name.find(s)
         if idx != -1:
             name = clean(name[:idx])
+    name = name.lower()
+    for s in suffix:
+        s = s.lower()
+        if len(s) >= 5:
+            idx = name.find(s)
+            if idx != -1:
+                name = clean(name[:idx])
     name = clean(name)
     return name
 
